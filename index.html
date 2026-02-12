@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Mechanic Assistant</title>
+</head>
+<body>
+  <h2>AI Mechanic Assistant</h2>
+  <input id="msg" placeholder="Ask about car repairs..." />
+  <button onclick="send()">Send</button>
+  <pre id="chat"></pre>
+
+<script>
+async function send(){
+  const text = msg.value;
+  chat.innerText += "\n\nYou: " + text;
+
+  const res = await fetch("/api/chat",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ message:text })
+  });
+
+  const data = await res.json();
+  chat.innerText += "\n\nBot: " + data.reply;
+}
+</script>
+</body>
+</html>
