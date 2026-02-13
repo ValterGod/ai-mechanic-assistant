@@ -3,9 +3,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { message } = req.body;
+  try {
+    const { message } = req.body;
 
-  const systemPrompt = `
+    const systemPrompt = `
 You are a professional automotive cost estimation assistant for Sweden.
 
 Rules:
@@ -31,8 +32,7 @@ Tone:
 - Clear
 `;
 
-  try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -41,28 +41,32 @@ Tone:
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         input: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: message
-          }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message }
         ]
       })
     });
 
-    const data = await response.json();
+    const data = await openaiResponse.json();
 
-    const reply =
-      data.output_text ||
-      data.output?.[0]?.content?.[0]?.text ||
-      "Sorry, I could not generate a response.";
+    let reply = "Sorry, I could not generate a response.";
+
+    if (data.output && Array.isArray(data.output)) {
+      for (const item of data.output) {
+        if (item.content) {
+          for (const part of item.content) {
+            if (part.type === "output_text") {
+              reply = part.text;
+              break;
+            }
+          }
+        }
+      }
+    }
 
     res.status(200).json({ reply });
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 }
