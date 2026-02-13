@@ -6,33 +6,7 @@ export default async function handler(req, res) {
   try {
     const { message } = req.body;
 
-    const systemPrompt = `
-You are a professional automotive cost estimation assistant for Sweden.
-
-Rules:
-- You ONLY answer questions related to cars, vehicle repairs, servicing, diagnostics, maintenance, and costs.
-- If a question is not vehicle-related, politely refuse.
-
-Pricing logic:
-- Always calculate a SINGLE approximate total price in SEK.
-- Always include labor cost.
-- Use Swedish market pricing.
-- Typical labor rate: 900–1200 SEK/hour.
-
-Response structure:
-- Clear title
-- Parts estimate
-- Labor estimate
-- Final total as: ≈ XXXX SEK
-- Short disclaimer: Prices are estimates only.
-
-Tone:
-- Professional
-- Helpful
-- Clear
-`;
-
-    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -40,33 +14,39 @@ Tone:
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
-        input: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message }
-        ]
+        input: `
+You are a professional automotive cost estimation assistant for Sweden.
+
+Rules:
+- Only answer vehicle-related questions.
+- Always calculate a SINGLE approximate total price in SEK.
+- Always include labor cost.
+- Typical labor rate: 900–1200 SEK/hour.
+- Use Swedish market pricing.
+- Refuse non-car questions politely.
+
+User question:
+${message}
+`
       })
     });
 
-    const data = await openaiResponse.json();
+    const data = await response.json();
 
-    let reply = "Sorry, I could not generate a response.";
+    console.log("FULL OPENAI RESPONSE:", JSON.stringify(data, null, 2));
 
-    if (data.output && Array.isArray(data.output)) {
-      for (const item of data.output) {
-        if (item.content) {
-          for (const part of item.content) {
-            if (part.type === "output_text") {
-              reply = part.text;
-              break;
-            }
-          }
-        }
-      }
+    const reply = data.output?.[0]?.content?.[0]?.text;
+
+    if (!reply) {
+      return res.status(500).json({
+        reply: "AI responded but no readable text was found. Check logs."
+      });
     }
 
     res.status(200).json({ reply });
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("SERVER ERROR:", error);
+    res.status(500).json({ reply: "Server error occurred." });
   }
 }
